@@ -31,3 +31,7 @@ Thumbs.db
 # Backup
 *.bak
 *.backup
+
+# Documentation with sensitive info
+AGENTS.md
+PRD.md
