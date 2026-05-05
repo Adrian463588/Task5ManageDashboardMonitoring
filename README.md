@@ -135,7 +135,7 @@ curl http://localhost:9090/api/v1/targets
 ### Discord Webhook
 
 ```
-https://discord.com/api/webhooks/1500863494621364336/c_Ts6EpFXAw6lE1OraPQ38DX6mZvq5h8wDiy64iRhLKKqpLTGUO0zBYtv0FDY2xTimPq
+YOUR_DISCORD_WEBHOOK_URL
 ```
 
 ## 🛠️ Manual Commands

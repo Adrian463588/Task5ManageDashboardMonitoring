@@ -109,7 +109,7 @@ Expected containers:
    - Alerting → Contact points → Add contact point
    - Name: `Discord`
    - Integration: **Discord**
-   - Webhook URL: `https://discord.com/api/webhooks/1500863494621364336/c_Ts6EpFXAw6lE1OraPQ38DX6mZvq5h8wDiy64iRhLKKqpLTGUO0zBYtv0FDY2xTimPq`
+   - Webhook URL: `YOUR_DISCORD_WEBHOOK_URL`
    - Click: **Save contact point**
 
 2. **Create Notification Policy:**
@@ -136,7 +136,7 @@ Expected containers:
 ### Configure Discord Notifications
 1. Settings → Notifications → Add Notification
 2. Type: **Discord**
-3. Webhook URL: `https://discord.com/api/webhooks/1500863494621364336/c_Ts6EpFXAw6lE1OraPQ38DX6mZvq5h8wDiy64iRhLKKqpLTGUO0zBYtv0FDY2xTimPq`
+3. Webhook URL: `YOUR_DISCORD_WEBHOOK_URL`
 4. Click: **Test** → **Save**
 
 ### Link to Monitor

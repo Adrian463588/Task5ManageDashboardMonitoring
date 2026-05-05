@@ -5,8 +5,8 @@ resource "google_compute_instance" "vm_instance" {
 
   boot_disk {
     initialize_params {
-      image = "ubuntu-2204-jammy-v20240109"
-      size  = 20
+      image = "ubuntu-os-cloud/ubuntu-2204-lts"
+      size  = 10
       type  = "pd-standard"
     }
   }
