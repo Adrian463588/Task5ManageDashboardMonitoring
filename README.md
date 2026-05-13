@@ -1,238 +1,158 @@
 # Task5ManageDashboardMonitoring
 
-A complete DevOps monitoring stack deployment on Google Cloud Platform (GCP) featuring web server, observability, and alerting.
+A robust, dual-VM DevOps monitoring stack deployment on Google Cloud Platform (GCP) featuring a web server, complete observability (Prometheus & Grafana), and an automated Discord alerting system (Alertmanager & Uptime Kuma).
 
-## 🏗️ Architecture
+## 📸 Monitoring Results
 
-```
-┌─────────────────────────────────────────────────────────────┐
-│                      GCP Compute Engine                      │
-│  ┌─────────────────────────────────────────────────────────┐│
-│  │                    Docker Network                        ││
-│  │  ┌─────────────┐ ┌─────────────┐ ┌─────────────────┐   ││
-│  │  │   Nginx     │ │ Node Exporter│ │   Prometheus   │   ││
-│  │  │   (80)      │ │   (9100)     │ │    (9090)      │   ││
-│  │  └─────────────┘ └─────────────┘ └─────────────────┘   ││
-│  │  ┌─────────────┐ ┌─────────────┐ ┌─────────────────┐   ││
-│  │  │ Alertmanager│ │   Grafana   │ │   Uptime Kuma   │   ││
-│  │  │   (9093)    │ │   (3000)    │ │    (3001)      │   ││
-│  │  └─────────────┘ └─────────────┘ └─────────────────┘   ││
-│  └─────────────────────────────────────────────────────────┘│
-└─────────────────────────────────────────────────────────────┘
+Berikut adalah hasil nyata dari *alerting system* yang telah diimplementasikan:
+
+### Prometheus / Alertmanager (High Memory Alert)
+![Prometheus Alert Notif](./img/PrometheusAlertNotif.png)
+
+### Uptime Kuma (Web Downtime Alert)
+![Kuma Uptime Notif](./img/KumaUptimeNotif.png)
+
+---
+
+## 🏗️ Architecture (Dual-VM Setup)
+
+Demi menjaga stabilitas saat beban server sedang tinggi (stress test), arsitektur ini memisahkan layanan monitoring dari server target aplikasi.
+
+```text
+┌─────────────────────────────────────────────────────────────────┐
+│                      GCP Compute Engine                         │
+│                                                                 │
+│  ┌─────────────────────────┐       ┌─────────────────────────┐  │
+│  │     target-vm           │       │    monitoring-vm        │  │
+│  │     (e2-micro)          │       │    (e2-small)           │  │
+│  │                         │       │                         │  │
+│  │ ┌─────────────────────┐ │       │ ┌─────────────────────┐ │  │
+│  │ │      Nginx (80)     │ │ <───  │ │ Uptime Kuma (3001)  │ │  │
+│  │ └─────────────────────┘ │       │ └─────────────────────┘ │  │
+│  │                         │       │                         │  │
+│  │ ┌─────────────────────┐ │       │ ┌─────────────────────┐ │  │
+│  │ │ Node Exporter (9100)│ │ <───  │ │  Prometheus (9090)  │ │  │
+│  │ └─────────────────────┘ │       │ └─────────────────────┘ │  │
+│  └─────────────────────────┘       │          │              │  │
+│                                    │          v              │  │
+│                                    │ ┌─────────────────────┐ │  │
+│                                    │ │ Alertmanager (9093) │ │  │
+│                                    │ └─────────────────────┘ │  │
+│                                    │          │              │  │
+│                                    │          v              │  │
+│                                    │   [ Discord Webhook ]   │  │
+│                                    │                         │  │
+│                                    │ ┌─────────────────────┐ │  │
+│                                    │ │    Grafana (3000)   │ │  │
+│                                    │ └─────────────────────┘ │  │
+│                                    └─────────────────────────┘  │
+└─────────────────────────────────────────────────────────────────┘
 ```
 
 ## 📦 Components
 
-| Component | Port | Description |
-|-----------|------|-------------|
-| Nginx | 80 | Web server serving static HTML |
-| Node Exporter | 9100 | System metrics collection |
-| Prometheus | 9090 | Time-series database & alerting |
-| Alertmanager | 9093 | Alert routing to Discord |
-| Grafana | 3000 | Visualization dashboards |
-| Uptime Kuma | 3001 | HTTP monitoring & alerts |
+| Component | Port | VM | Description |
+|-----------|------|----|-------------|
+| **Nginx** | `80` | `target-vm` | Web server serving static HTML |
+| **Node Exporter** | `9100` | `target-vm` | System hardware & OS metrics collection |
+| **Prometheus** | `9090` | `monitoring-vm` | Time-series database & alerting rules engine |
+| **Alertmanager** | `9093` | `monitoring-vm` | Alert routing & formatting to Discord |
+| **Grafana** | `3000` | `monitoring-vm` | Visualization dashboards |
+| **Uptime Kuma** | `3001` | `monitoring-vm` | HTTP health check & downtime alerts |
 
-## 🚀 Quick Start
+---
 
-### Prerequisites
+## 🚀 Deployment Guide (Step-by-Step for DevOps)
 
-- **GCP Account** with billing enabled
-- **gcloud CLI** installed and configured
-- **Terraform** v1.0+
-- **SSH key pair** (`~/.ssh/id_rsa` and `~/.ssh/id_rsa.pub`)
+Panduan ini ditujukan bagi *DevOps Engineer* lain yang ingin menjalankan ulang (*reproduce*) infrastruktur ini dari nol.
 
-### Step 1: Authenticate with GCP
+### Step 1: Prerequisites
+- **GCP Account** dengan *billing* aktif.
+- **gcloud CLI** & **Terraform** terinstal di perangkat lokal Anda.
+- **Discord Webhook URL** untuk menerima notifikasi.
 
+### Step 2: Authenticate & Prepare GCP
 ```bash
-# Login to GCP
+# Login ke GCP
 gcloud auth application-default login
 
-# Set your project
+# Pilih project GCP Anda (ubah YOUR_PROJECT_ID)
 gcloud config set project YOUR_PROJECT_ID
-
-# Enable required APIs
 gcloud services enable compute.googleapis.com
 ```
 
-### Step 2: Configure Variables
-
-Create `terraform/terraform.tfvars`:
-
+### Step 3: Configure Variables (HINDARI LEAK CREDENTIAL)
+1. Buka folder `terraform/`.
+2. Buat file `terraform.tfvars` (file ini otomatis diabaikan oleh `.gitignore` untuk keamanan).
+3. Isi dengan konfigurasi spesifik Anda:
 ```hcl
-project_id            = "your-gcp-project-id"
+project_id            = "YOUR_PROJECT_ID"
 region                = "asia-southeast2"
 zone                  = "asia-southeast2-a"
-ssh_user              = "admin"
-ssh_public_key_path   = "~/.ssh/id_rsa.pub"
+discord_webhook_url   = "https://discord.com/api/webhooks/xxxxx/yyyyy"
 ```
 
-### Step 3: Provision Infrastructure
-
+### Step 4: Provision Infrastructure
+Jalankan perintah berikut untuk mengeksekusi Terraform. Proses ini akan membuat 2 VM, mengkonfigurasi IP Statis, membuka *Firewall Ports*, dan secara otomatis melakukan injeksi konfigurasi ke script `setup.sh`.
 ```bash
-# Navigate to terraform directory
 cd terraform
-
-# Initialize Terraform
 terraform init
-
-# Plan and apply
-terraform plan -out=plan.out
-terraform apply plan.out
-
-# Note the VM external IP from output
+terraform apply -auto-approve
 ```
+> **Catatan:** Terraform Output akan memberikan IP Public dari `target-vm` dan `monitoring-vm`.
 
-### Step 4: Access the VM
+### Step 5: Post-Deployment Setup
+Setelah infrastruktur berdiri (tunggu ~3 menit agar *startup script* selesai), Anda perlu mengonfigurasi UI:
 
+**1. Konfigurasi Grafana:**
+- Buka `http://<MONITORING_VM_IP>:3000` (User: `admin` / Pass: `admin123`)
+- Buka **Connections > Data Sources > Add Prometheus**.
+- Masukkan URL: `http://prometheus:9090`, lalu Save & Test.
+- Buka **Dashboards > Import**. Masukkan ID `1860` (Node Exporter Full), pilih source Prometheus, dan Import.
+
+**2. Konfigurasi Uptime Kuma:**
+- Buka `http://<MONITORING_VM_IP>:3001` dan buat akun admin.
+- Buka **Settings > Notifications**, lalu Setup **Discord** dengan webhook URL Anda. Jangan lupa di-Test.
+- Tambahkan Monitor baru (tipe HTTP) dan arahkan ke `http://<TARGET_VM_IP>`. Centang opsi notifikasi Discord.
+
+### Step 6: Verifikasi & Stress Testing
+Masuk ke `target-vm` melalui SSH untuk melakukan simulasi:
+
+**Test 1: Memori Penuh (Alertmanager)**
 ```bash
-ssh -i ~/.ssh/id_rsa admin@<VM_EXTERNAL_IP>
+# Target VM akan menggunakan memori yang tinggi (melewati batas 80%)
+stress --vm 1 --vm-bytes 850M --timeout 180s
 ```
+> *Hasil yang diharapkan: Notifikasi `[FIRING] Prometheus Alert` muncul di Discord.*
 
-The `setup.sh` script runs automatically on first boot and:
-- Installs Docker & Docker Compose
-- Installs Nginx
-- Deploys all monitoring services
-- Configures web server
-
-### Step 5: Verify Deployment
-
+**Test 2: Server Down (Uptime Kuma)**
 ```bash
-# Check running containers
-docker ps
-
-# Test web server
-curl http://localhost
-
-# Check Prometheus targets
-curl http://localhost:9090/api/v1/targets
-```
-
-## 🔗 Access Points
-
-| Service | URL | Credentials |
-|---------|-----|-------------|
-| Web Server | `http://<VM_IP>` | - |
-| Prometheus | `http://<VM_IP>:9090` | - |
-| Grafana | `http://<VM_IP>:3000` | admin / admin123 |
-| Alertmanager | `http://<VM_IP>:9093` | - |
-| Uptime Kuma | `http://<VM_IP>:3001` | (create account) |
-
-## 📊 Monitoring Configuration
-
-### Memory Usage Query (PromQL)
-
-```promql
-(1 - (node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)) * 100
-```
-
-### Alert Rules
-
-- **HighMemoryUsage**: Memory > 80% for 1 minute
-- **HighCPUUsage**: CPU > 80% for 2 minutes
-- **DiskSpaceLow**: Disk > 80% for 5 minutes
-- **NodeDown**: Node Exporter unreachable
-
-### Discord Webhook
-
-```
-YOUR_DISCORD_WEBHOOK_URL
-```
-
-## 🛠️ Manual Commands
-
-### Start/Stop Services
-
-```bash
-cd /opt/monitoring
-
-# Start all services
-docker compose up -d
-
-# Stop all services
-docker compose down
-
-# Restart specific service
-docker compose restart prometheus
-
-# View logs
-docker compose logs -f
-```
-
-### Update Monitoring Stack
-
-```bash
-cd /opt/monitoring
-docker compose pull
-docker compose up -d
-```
-
-### Test Alerts
-
-```bash
-# Simulate high memory usage
-stress --cpu 8 --timeout 60
-
-# Stop web server to trigger Uptime Kuma alert
 sudo systemctl stop nginx
 ```
+> *Hasil yang diharapkan: Notifikasi `[Target VM] [DOWN]` dari Uptime Kuma muncul di Discord.*
 
-## 📁 Project Structure
+---
 
-```
+## 🛠️ Folder Structure
+```text
 .
 ├── terraform/
-│   ├── main.tf           # VM, static IP, firewall rules
-│   ├── provider.tf       # GCP provider configuration
-│   ├── variables.tf      # Configurable variables
-│   ├── outputs.tf        # VM IP output
-│   └── terraform.tfvars  # YOUR VARIABLES (create this)
+│   ├── main.tf           # Definisi 2-VM, static IP, template file injection
+│   ├── variables.tf      # Deklarasi variabel
+│   └── outputs.tf        # Output URL untuk diakses
 ├── monitoring/
-│   ├── docker-compose.yml    # All monitoring services
-│   ├── prometheus.yml        # Metrics collection config
-│   ├── alert.rules.yml       # Alert rules
-│   └── alertmanager.yml      # Discord webhook routing
+│   ├── docker-compose.yml# Orkestrasi container monitoring
+│   ├── prometheus.yml    # Scrape config
+│   ├── alert.rules.yml   # Threshold CPU & Memory (80%)
+│   └── alertmanager.yml  # Format notifikasi Discord (menggunakan discord_configs)
 ├── provisioning/
-│   └── setup.sh          # VM initialization script
-├── web/
-│   └── index.html        # Static HTML content
-├── DEPLOYMENT_GUIDE.md   # Detailed deployment guide
-└── README.md             # This file
+│   ├── setup.sh          # Script otomatisasi monitoring-vm
+│   └── setup-target.sh   # Script otomatisasi target-vm (termasuk 1GB Swap)
+└── web/
+    └── index.html        # Halaman depan website
 ```
 
 ## 🔐 Security Notes
-
-- Change default Grafana credentials (`admin/admin123`)
-- Restrict firewall rules to specific IP ranges
-- Use HTTPS with Let's Encrypt for production
-- Rotate Discord webhook URL periodically
-- Never commit `terraform.tfvars` to version control
-
-## 📝 Troubleshooting
-
-### Check Container Status
-```bash
-docker compose -f /opt/monitoring/docker-compose.yml ps
-```
-
-### View Logs
-```bash
-docker logs -f node-exporter
-docker logs -f prometheus
-docker logs -f grafana
-```
-
-### Verify Prometheus Targets
-Open: `http://<VM_IP>:9090/targets`
-
-### Check Firewall Rules
-```bash
-gcloud compute firewall-rules list --filter="allowed[].ports:22 OR allowed[].ports:80"
-```
-
-## 📄 License
-
-This project is for educational purposes. Use at your own risk.
-
-## 👤 Author
-
-Created for DevOps learning and demonstration.
+1. **Webhook Protection:** File `update_monitoring.sh` atau script apa pun yang mengandung *hardcoded URL Webhook* harus dihapus dari sistem sebelum di-*push* ke repositori publik. Parameter dilempar dengan aman via variabel Terraform.
+2. **Default Password:** Harap segera mengganti password bawaan Grafana (`admin123`).
+3. **Firewall:** Buka port secara spesifik, jangan gunakan `0.0.0.0/0` pada production *port* seperti 9090 jika tidak perlu.

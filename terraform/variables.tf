@@ -32,3 +32,10 @@ variable "service_account_email" {
   type        = string
   default     = "default"
 }
+
+# DRY: Discord webhook defined once, injected to all services via templatefile()
+variable "discord_webhook_url" {
+  description = "Discord webhook URL for Alertmanager and Uptime Kuma notifications"
+  type        = string
+  sensitive   = true
+}
