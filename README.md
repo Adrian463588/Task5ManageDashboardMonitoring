@@ -1,30 +1,41 @@
 # Task5ManageDashboardMonitoring
 
-A robust, dual-VM DevOps monitoring stack deployment on Google Cloud Platform (GCP) featuring a web server, complete observability (Prometheus & Grafana), and an automated Discord alerting system (Alertmanager & Uptime Kuma).
+A robust, platform-agnostic, dual-VM DevOps monitoring stack deployment featuring a web server, complete observability (Prometheus & Grafana), and an automated Discord alerting system (Alertmanager & Uptime Kuma).
 
-## 📸 Monitoring Results
+> 💡 **Platform-Agnostic Design**: While this repository includes **Terraform scripts for GCP**, the core monitoring stack (Docker Compose, Bash Scripts, and Configuration YAMLs) can be deployed seamlessly on **AWS (EC2)**, **Azure (Virtual Machines)**, or any **On-Premise Ubuntu servers**.
 
-Berikut adalah hasil nyata dari *alerting system* yang telah diimplementasikan:
+---
 
-### Prometheus / Alertmanager (High Memory Alert)
+## 📸 Monitoring Dashboards & Results
+
+Berikut adalah hasil nyata dari *monitoring dashboard* dan *alerting system* yang telah diimplementasikan:
+
+### 1. Grafana Dashboard (Node Exporter Full)
+![Grafana Dashboard](./img/GrafanaDashboard.png)
+
+### 2. Uptime Kuma Dashboard (HTTP Status)
+![Uptime Kuma Dashboard](./img/UptimeKumaDashboard.png)
+
+### 3. Prometheus Alerting Rules
+![Prometheus Alert Rules](./img/PrometheusAlert.png)
+
+### 4. Discord Alert Notifications (Firing & Resolved)
 ![Prometheus Alert Notif](./img/PrometheusAlertNotif.png)
-
-### Uptime Kuma (Web Downtime Alert)
 ![Kuma Uptime Notif](./img/KumaUptimeNotif.png)
 
 ---
 
 ## 🏗️ Architecture (Dual-VM Setup)
 
-Demi menjaga stabilitas saat beban server sedang tinggi (stress test), arsitektur ini memisahkan layanan monitoring dari server target aplikasi.
+Demi menjaga stabilitas saat beban server sedang tinggi (*stress test*), arsitektur ini memisahkan layanan monitoring dari server target aplikasi.
 
 ```text
 ┌─────────────────────────────────────────────────────────────────┐
-│                      GCP Compute Engine                         │
+│                      Cloud Provider (GCP/AWS/Azure)             │
 │                                                                 │
 │  ┌─────────────────────────┐       ┌─────────────────────────┐  │
 │  │     target-vm           │       │    monitoring-vm        │  │
-│  │     (e2-micro)          │       │    (e2-small)           │  │
+│  │     (1vCPU, 1GB RAM)    │       │    (1vCPU, 2GB RAM)     │  │
 │  │                         │       │                         │  │
 │  │ ┌─────────────────────┐ │       │ ┌─────────────────────┐ │  │
 │  │ │      Nginx (80)     │ │ <───  │ │ Uptime Kuma (3001)  │ │  │
@@ -62,47 +73,70 @@ Demi menjaga stabilitas saat beban server sedang tinggi (stress test), arsitektu
 
 ---
 
-## 🚀 Deployment Guide (Step-by-Step for DevOps)
+## 🚀 Deployment Guide (Step-by-Step)
 
-Panduan ini ditujukan bagi *DevOps Engineer* lain yang ingin menjalankan ulang (*reproduce*) infrastruktur ini dari nol.
+Panduan ini dirancang agar *DevOps Engineer* dapat mereplikasi infrastruktur ini dari nol, baik di GCP maupun cloud provider lainnya.
 
-### Step 1: Prerequisites
+### Opsi A: Deployment Otomatis menggunakan Terraform (Hanya untuk GCP)
+
+Jika Anda menggunakan Google Cloud Platform, Anda dapat menjalankan *provisioning* secara otomatis 100%:
+
+**1. Prerequisites:**
 - **GCP Account** dengan *billing* aktif.
-- **gcloud CLI** & **Terraform** terinstal di perangkat lokal Anda.
-- **Discord Webhook URL** untuk menerima notifikasi.
+- **gcloud CLI** & **Terraform** terinstal.
+- **Discord Webhook URL**.
 
-### Step 2: Authenticate & Prepare GCP
+**2. Setup & Eksekusi:**
 ```bash
 # Login ke GCP
 gcloud auth application-default login
-
-# Pilih project GCP Anda (ubah YOUR_PROJECT_ID)
 gcloud config set project YOUR_PROJECT_ID
 gcloud services enable compute.googleapis.com
-```
 
-### Step 3: Configure Variables (HINDARI LEAK CREDENTIAL)
-1. Buka folder `terraform/`.
-2. Buat file `terraform.tfvars` (file ini otomatis diabaikan oleh `.gitignore` untuk keamanan).
-3. Isi dengan konfigurasi spesifik Anda:
-```hcl
+# Setup Variabel (HINDARI LEAK CREDENTIAL)
+cd terraform
+cat <<EOF > terraform.tfvars
 project_id            = "YOUR_PROJECT_ID"
 region                = "asia-southeast2"
 zone                  = "asia-southeast2-a"
 discord_webhook_url   = "https://discord.com/api/webhooks/xxxxx/yyyyy"
-```
+EOF
 
-### Step 4: Provision Infrastructure
-Jalankan perintah berikut untuk mengeksekusi Terraform. Proses ini akan membuat 2 VM, mengkonfigurasi IP Statis, membuka *Firewall Ports*, dan secara otomatis melakukan injeksi konfigurasi ke script `setup.sh`.
-```bash
-cd terraform
+# Deploy Infrastruktur
 terraform init
 terraform apply -auto-approve
 ```
-> **Catatan:** Terraform Output akan memberikan IP Public dari `target-vm` dan `monitoring-vm`.
+> *Catatan: Terraform otomatis akan memanggil `setup.sh` dan `setup-target.sh`, serta melakukan injeksi IP dan URL Webhook dengan aman.*
 
-### Step 5: Post-Deployment Setup
-Setelah infrastruktur berdiri (tunggu ~3 menit agar *startup script* selesai), Anda perlu mengonfigurasi UI:
+---
+
+### Opsi B: Deployment Manual pada Cloud Provider Lain (AWS / Azure / On-Premise)
+
+Jika Anda menggunakan AWS EC2, Azure VM, atau VirtualBox, Anda dapat memanfaatkan script *provisioning* yang sudah tersedia.
+
+**1. Siapkan 2 buah Virtual Machine (OS: Ubuntu 22.04+):**
+- **VM 1 (`target-vm`)**: Minimal 1 vCPU, 1GB RAM. Pastikan Port `80` dan `9100` terbuka di Security Group / Firewall.
+- **VM 2 (`monitoring-vm`)**: Minimal 1 vCPU, 2GB RAM. Pastikan Port `3000`, `3001`, dan `9090` terbuka.
+
+**2. Setup `target-vm`:**
+Copy script `provisioning/setup-target.sh` ke dalam `target-vm` dan jalankan sebagai root:
+```bash
+sudo bash setup-target.sh
+```
+
+**3. Setup `monitoring-vm`:**
+- Edit script `provisioning/setup.sh` terlebih dahulu.
+- Ganti tulisan `${target_vm_ip}` menjadi **IP Public/Private dari `target-vm`**.
+- Ganti tulisan `${discord_webhook_url}` menjadi **URL Discord Webhook asli Anda**.
+- Setelah disimpan, copy ke `monitoring-vm` dan jalankan:
+```bash
+sudo bash setup.sh
+```
+
+---
+
+### Step 5: Post-Deployment UI Configuration
+Setelah infrastruktur berdiri (tunggu ~3 menit agar Docker selesai men-download image), konfigurasikan UI berikut:
 
 **1. Konfigurasi Grafana:**
 - Buka `http://<MONITORING_VM_IP>:3000` (User: `admin` / Pass: `admin123`)
@@ -115,12 +149,16 @@ Setelah infrastruktur berdiri (tunggu ~3 menit agar *startup script* selesai), A
 - Buka **Settings > Notifications**, lalu Setup **Discord** dengan webhook URL Anda. Jangan lupa di-Test.
 - Tambahkan Monitor baru (tipe HTTP) dan arahkan ke `http://<TARGET_VM_IP>`. Centang opsi notifikasi Discord.
 
-### Step 6: Verifikasi & Stress Testing
+---
+
+## 🧪 Verifikasi & Stress Testing
+
 Masuk ke `target-vm` melalui SSH untuk melakukan simulasi:
 
 **Test 1: Memori Penuh (Alertmanager)**
 ```bash
 # Target VM akan menggunakan memori yang tinggi (melewati batas 80%)
+# Tidak akan crash (OOM Kill) karena sistem sudah dilengkapi 1GB Swap dari script setup.
 stress --vm 1 --vm-bytes 850M --timeout 180s
 ```
 > *Hasil yang diharapkan: Notifikasi `[FIRING] Prometheus Alert` muncul di Discord.*
@@ -137,7 +175,7 @@ sudo systemctl stop nginx
 ```text
 .
 ├── terraform/
-│   ├── main.tf           # Definisi 2-VM, static IP, template file injection
+│   ├── main.tf           # Definisi 2-VM GCP, static IP, template file injection
 │   ├── variables.tf      # Deklarasi variabel
 │   └── outputs.tf        # Output URL untuk diakses
 ├── monitoring/
@@ -146,13 +184,13 @@ sudo systemctl stop nginx
 │   ├── alert.rules.yml   # Threshold CPU & Memory (80%)
 │   └── alertmanager.yml  # Format notifikasi Discord (menggunakan discord_configs)
 ├── provisioning/
-│   ├── setup.sh          # Script otomatisasi monitoring-vm
-│   └── setup-target.sh   # Script otomatisasi target-vm (termasuk 1GB Swap)
+│   ├── setup.sh          # Script otomatisasi monitoring-vm (Platform Agnostic)
+│   └── setup-target.sh   # Script otomatisasi target-vm (Platform Agnostic)
 └── web/
     └── index.html        # Halaman depan website
 ```
 
 ## 🔐 Security Notes
-1. **Webhook Protection:** File `update_monitoring.sh` atau script apa pun yang mengandung *hardcoded URL Webhook* harus dihapus dari sistem sebelum di-*push* ke repositori publik. Parameter dilempar dengan aman via variabel Terraform.
+1. **Webhook Protection:** Parameter *Discord webhook* tidak boleh ada di dalam file `.yml` atau `.sh` yang di-commit ke Git. Injeksi rahasia dilakukan saat *runtime* (via Terraform `templatefile` atau modifikasi manual). File `terraform.tfvars` wajib di-*ignore*.
 2. **Default Password:** Harap segera mengganti password bawaan Grafana (`admin123`).
-3. **Firewall:** Buka port secara spesifik, jangan gunakan `0.0.0.0/0` pada production *port* seperti 9090 jika tidak perlu.
+3. **Firewall:** Buka port secara spesifik melalui *Security Groups* atau *VPC Firewall Rules*. Jangan gunakan `0.0.0.0/0` pada port sensitif jika memungkinkan batasi hanya dari IP kantor Anda.
